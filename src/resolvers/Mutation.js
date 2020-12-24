@@ -1,5 +1,6 @@
 import bcrypt from 'bcryptjs'
 import jwt from 'jsonwebtoken'
+import getUserId from '../utils/getUserId'
 
 const Mutation = {
   async login(parent, args, ctx, info) {
@@ -42,25 +43,28 @@ const Mutation = {
       token: jwt.sign({ userId: user.id }, 'myjwtsecret'),
     }
   },
-  async deleteUser(parent, args, { prisma }, info) {
+  async deleteUser(parent, args, { prisma, request }, info) {
+    const userId = getUserId(request)
     const user = await prisma.mutation.deleteUser(
-      { where: { id: args.id } },
+      { where: { id: userId } },
       info,
     )
     return user
   },
-  async updateUser(parent, args, { prisma }, info) {
+  async updateUser(parent, args, { prisma, request }, info) {
+    const userId = getUserId(request)
     return prisma.mutation.updateUser(
       {
         data: args.data,
         where: {
-          id: args.id,
+          id: userId,
         },
       },
       info,
     )
   },
-  async createPost(parent, args, { prisma }, info) {
+  async createPost(parent, args, { prisma, request }, info) {
+    const userId = getUserId(request)
     return prisma.mutation.createPost(
       {
         data: {
@@ -69,7 +73,7 @@ const Mutation = {
           published: args.data.published,
           author: {
             connect: {
-              id: args.data.author,
+              id: userId,
             },
           },
         },
@@ -77,7 +81,19 @@ const Mutation = {
       info,
     )
   },
-  async deletePost(parent, args, { prisma }, info) {
+  async deletePost(parent, args, { prisma, request }, info) {
+    const userId = getUserId(request)
+    const postExists = await prisma.exists.Post({
+      id: args.id,
+      author: {
+        id: userId,
+      },
+    })
+
+    if (!postExists) {
+      throw new Error('Unable to find post')
+    }
+
     return prisma.mutation.deletePost(
       {
         where: {
@@ -88,38 +104,61 @@ const Mutation = {
     )
   },
   async updatePost(parent, args, ctx, info) {
-    const { prisma } = ctx
+    const { prisma, request } = ctx
+    const userId = getUserId(request)
+    const postExists = await prisma.exists.Post({
+      id: args.id,
+      author: {
+        id: userId,
+      },
+    })
+    if (!postExists) {
+      throw new Error('Unable to update post')
+    }
     return prisma.mutation.updatePost(
       {
+        data: args.data,
         where: {
           id: args.id,
         },
-        data: args.data,
       },
       info,
     )
   },
-  async createComment(parent, args, { prisma }, info) {
+  async createComment(parent, args, ctx, info) {
+    const { prisma, request } = ctx
+    const userId = getUserId(request)
     return prisma.mutation.createComment(
       {
         data: {
           text: args.data.text,
-          author: {
-            connect: {
-              id: args.data.author,
-            },
-          },
           post: {
             connect: {
               id: args.data.post,
             },
           },
+          author: {
+            connect: {
+              id: userId,
+            },
+          },
         },
       },
       info,
     )
   },
-  async deleteComment(parent, args, { prisma }, info) {
+  async deleteComment(parent, args, ctx, info) {
+    const { prisma, request } = ctx
+    const userId = getUserId(request)
+    const commentExists = await prisma.exists.Comment({
+      id: args.id,
+      author: {
+        id: userId
+      }
+    })
+    if (!commentExists) {
+      throw new Error ('Unable to delete comment')
+    }
     return prisma.mutation.deleteComment(
       {
         where: {
@@ -130,7 +169,17 @@ const Mutation = {
     )
   },
   async updateComment(parent, args, ctx, info) {
-    const { prisma } = ctx
+    const { prisma, request } = ctx
+    const userId = getUserId(request)
+    const commentExists = await prisma.exists.Comment({
+      id: args.id,
+      author: {
+        id: userId
+      }
+    })
+    if(!commentExists) {
+      throw new Error('Unable to update comment')
+    }
     return prisma.mutation.updateComment(
       {
         data: args.data,
