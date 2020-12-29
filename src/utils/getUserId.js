@@ -6,7 +6,7 @@ const getUserId = (request, requireAuth = true) => {
     : request.connection.context.Authorization // for subscriptions
   if (header) {
     const token = header.replace('Bearer ', '')
-    const decoded = jwt.verify(token, 'myjwtsecret')
+    const decoded = jwt.verify(token, process.env.JWT_SECRET)
     return decoded.userId
   }
   if (requireAuth) {
