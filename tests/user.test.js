@@ -1,53 +1,14 @@
 // SETUP
 import 'cross-fetch/polyfill'
-import ApolloBoost, { gql } from 'apollo-boost'
+import { gql } from 'apollo-boost'
 import prisma from '../src/prisma'
-import bcrypt from 'bcryptjs'
+import seedDatabase from './utils/seedDatabase'
+import getClient from './utils/getClient'
 
-const client = new ApolloBoost({
-  uri: 'http://localhost:4000',
-})
+const client = getClient()
 
 // SETTING UP TESTING DATA
-beforeEach(async () => {
-  await prisma.mutation.deleteManyPosts()
-  await prisma.mutation.deleteManyUsers()
-  
-  // dummy user for further testing
-  const dummyUser = await prisma.mutation.createUser({
-    data: {
-      name: 'dummyUser',
-      email: 'dummy@mail.com',
-      password: bcrypt.hashSync('dummypass1234'),
-    },
-  })
-  // create first post (published)
-  await prisma.mutation.createPost({
-    data: {
-      title: 'Published test post',
-      body: '',
-      published: true,
-      author: {
-        connect: {
-          id: dummyUser.id,
-        },
-      },
-    },
-  })
-  //create second post (draft)
-  await prisma.mutation.createPost({
-    data: {
-      title: 'Draft test post',
-      body: '',
-      published: false,
-      author: {
-        connect: {
-          id: dummyUser.id,
-        },
-      },
-    },
-  })
-})
+beforeEach(seedDatabase)
 
 // TESTS
 test('should create a new user', async () => {
@@ -70,4 +31,53 @@ test('should create a new user', async () => {
     id: response.data.createUser.user.id,
   })
   expect(exists).toBe(true)
+})
+
+test('should expose public author profiles', async () => {
+  const getUsers = gql`
+    query {
+      users {
+        id
+        name
+        email
+      }
+    }
+  `
+  const response = await client.query({ query: getUsers })
+  expect(response.data.users.length).toBe(1) // one user
+  expect(response.data.users[0].email).toBe(null) // email hidden
+  expect(response.data.users[0].name).toBe('dummyUser') // name check
+})
+
+test('should not login with bad credentials', async () => {
+  const login = gql`
+    mutation {
+      login(
+        data: { email: "false@credentials.com", password: "falsecredpass123" }
+      ) {
+        token
+      }
+    }
+  `
+  await expect(client.mutate({ mutation: login })).rejects.toThrow()
+})
+
+test('should not sign up with a short password', async () => {
+  const createUser = gql`
+    mutation {
+      createUser(
+        data: {
+          name: "badUser"
+          email: "badUser@email.com"
+          password: "abc123"
+        }
+      ) {
+        token
+        user {
+          id
+        }
+      }
+    }
+  `
+  await expect(client.mutate({mutation: createUser})).rejects.toThrow()
 })
