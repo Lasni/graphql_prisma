@@ -32,9 +32,10 @@ test('should create a new user', async () => {
 
 test('should expose public author profiles', async () => {
   const response = await client.query({ query: getUsers })
-  expect(response.data.users.length).toBe(1) // one user
+  expect(response.data.users.length).toBe(2) // two users
   expect(response.data.users[0].email).toBe(null) // email hidden
-  expect(response.data.users[0].name).toBe('dummyUser') // name check
+  expect(response.data.users[0].name).toBe('dummyUser1') // name check
+  expect(response.data.users[1].name).toBe('dummyUser2') // name check
 })
 
 test('should not login with bad credentials', async () => {
